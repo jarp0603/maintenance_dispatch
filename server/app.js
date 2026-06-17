@@ -41,6 +41,7 @@ app.use('/api/calendly', require('./routes/calendly'));
 app.use('/api/routes', require('./routes/routes'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/ai', require('./routes/ai'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV }));
