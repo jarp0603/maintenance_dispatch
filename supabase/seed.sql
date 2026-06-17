@@ -1,0 +1,2 @@
+-- Intentionally empty. Test fixtures are created inline by tests/db/rls.test.ts
+-- rather than via a shared seed, to keep each test's data self-contained.

@@ -18,27 +18,39 @@ one developer/maintainer.
 
 ## Getting started
 
+This project runs entirely against a **local** Supabase stack (Postgres, Auth, Storage)
+via Docker -- no cloud Supabase project is needed yet. It will be migrated to a hosted
+project later, once the app is fully working.
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) running.
+
 ```bash
 npm install
-cp .env.example .env.local   # then fill in real values
+npm run db:start             # starts local Postgres/Auth/Storage via Docker
+cp .env.example .env.local   # .env.local already has working local-dev defaults checked in
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. Supabase Studio (local DB browser) is at http://127.0.0.1:54323.
 
 ## Scripts
 
-| Command                | Purpose                            |
-| ---------------------- | ---------------------------------- |
-| `npm run dev`          | Start the local dev server         |
-| `npm run build`        | Production build                   |
-| `npm run start`        | Run the production build           |
-| `npm run typecheck`    | TypeScript type checking (no emit) |
-| `npm run lint`         | ESLint                             |
-| `npm run format`       | Prettier — write                   |
-| `npm run format:check` | Prettier — check only              |
-| `npm test`             | Run the test suite once            |
-| `npm run test:watch`   | Run the test suite in watch mode   |
+| Command                | Purpose                                        |
+| ----------------------- | ----------------------------------------------- |
+| `npm run dev`           | Start the local dev server                       |
+| `npm run build`         | Production build                                 |
+| `npm run start`         | Run the production build                         |
+| `npm run typecheck`     | TypeScript type checking (no emit)               |
+| `npm run lint`          | ESLint                                           |
+| `npm run format`        | Prettier — write                                 |
+| `npm run format:check`  | Prettier — check only                            |
+| `npm test`              | Run the unit test suite once                     |
+| `npm run test:watch`    | Run the unit test suite in watch mode            |
+| `npm run test:db`       | Run RLS/constraint integration tests (needs local DB running) |
+| `npm run db:start`      | Start the local Supabase stack (Docker)          |
+| `npm run db:stop`       | Stop the local Supabase stack                    |
+| `npm run db:status`     | Show local connection URLs and keys              |
+| `npm run db:reset`      | Drop and re-apply all migrations from scratch     |
 
 ## Environment variables
 
@@ -47,6 +59,30 @@ introduces them. Required variables are validated centrally:
 
 - [src/lib/env.server.ts](./src/lib/env.server.ts) — server-only secrets (never sent to the browser)
 - [src/lib/env.client.ts](./src/lib/env.client.ts) — `NEXT_PUBLIC_*` variables safe for the browser
+
+## Database
+
+Migrations live in [supabase/migrations](./supabase/migrations), applied in filename
+order. All 13 tables have Row Level Security enabled. Two access patterns:
+
+- **Owner-scoped tables** (profiles, properties, tenants, work_orders, status_history,
+  appointments, communications) — RLS policy `owner_id = auth.uid()`, granted to both
+  `authenticated` and `service_role`. The operator's own session can read/write their
+  own data directly; background jobs use `service_role` (which bypasses RLS) and must
+  filter by `owner_id` themselves.
+- **Service-role-only tables** (integration_credentials, public_action_tokens,
+  webhook_events) — no policies, and table grants are explicitly revoked from
+  `authenticated`/`anon`. These hold OAuth tokens, public-link token hashes, and raw
+  webhook payloads; only trusted server code (never the browser) touches them.
+  (email_imports, ratings, work_order_attachments are a middle case: written by
+  service-role background jobs, read-only for the operator.)
+
+Note: recent Supabase versions no longer auto-expose newly created tables to the API
+roles -- every table's migration includes explicit `grant`/`revoke` statements. If you
+add a new table, you must grant it explicitly or `authenticated`/`service_role` will get
+a permission error before RLS is even evaluated.
+
+Run `npm run test:db` to verify RLS isolation and constraints against a live database.
 
 ## Security notes
 
