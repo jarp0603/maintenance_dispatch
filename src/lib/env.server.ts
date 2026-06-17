@@ -4,8 +4,8 @@ import { z } from "zod";
 const serverEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 
-  // Supabase — required starting Phase 2/3.
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  // Supabase
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
   // Google OAuth / Gmail — required starting Phase 5.
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),

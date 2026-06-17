@@ -35,22 +35,22 @@ Open http://localhost:3000. Supabase Studio (local DB browser) is at http://127.
 
 ## Scripts
 
-| Command                | Purpose                                        |
-| ----------------------- | ----------------------------------------------- |
-| `npm run dev`           | Start the local dev server                       |
-| `npm run build`         | Production build                                 |
-| `npm run start`         | Run the production build                         |
-| `npm run typecheck`     | TypeScript type checking (no emit)               |
-| `npm run lint`          | ESLint                                           |
-| `npm run format`        | Prettier — write                                 |
-| `npm run format:check`  | Prettier — check only                            |
-| `npm test`              | Run the unit test suite once                     |
-| `npm run test:watch`    | Run the unit test suite in watch mode            |
-| `npm run test:db`       | Run RLS/constraint integration tests (needs local DB running) |
-| `npm run db:start`      | Start the local Supabase stack (Docker)          |
-| `npm run db:stop`       | Stop the local Supabase stack                    |
-| `npm run db:status`     | Show local connection URLs and keys              |
-| `npm run db:reset`      | Drop and re-apply all migrations from scratch     |
+| Command                | Purpose                                                       |
+| ---------------------- | ------------------------------------------------------------- |
+| `npm run dev`          | Start the local dev server                                    |
+| `npm run build`        | Production build                                              |
+| `npm run start`        | Run the production build                                      |
+| `npm run typecheck`    | TypeScript type checking (no emit)                            |
+| `npm run lint`         | ESLint                                                        |
+| `npm run format`       | Prettier — write                                              |
+| `npm run format:check` | Prettier — check only                                         |
+| `npm test`             | Run the unit test suite once                                  |
+| `npm run test:watch`   | Run the unit test suite in watch mode                         |
+| `npm run test:db`      | Run RLS/constraint integration tests (needs local DB running) |
+| `npm run db:start`     | Start the local Supabase stack (Docker)                       |
+| `npm run db:stop`      | Stop the local Supabase stack                                 |
+| `npm run db:status`    | Show local connection URLs and keys                           |
+| `npm run db:reset`     | Drop and re-apply all migrations from scratch                 |
 
 ## Environment variables
 
