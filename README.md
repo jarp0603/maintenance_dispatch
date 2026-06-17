@@ -1,100 +1,163 @@
 # Maintenance Dispatch
 
-Private dispatch web app for importing maintenance work orders from Gmail, scheduling
-tenant appointments via Calendly, and tracking each work order through its full lifecycle.
+A full-stack property maintenance dispatch web application for tracking work orders, scheduling tenant appointments, parsing maintenance request emails, and optimizing daily routes.
 
-This is a single-operator internal tool, not a public product. It is built and run by
-one developer/maintainer.
+## Tech Stack
 
-## Stack
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + Vite + Tailwind CSS + React Router |
+| Backend | Node.js + Express |
+| Database | SQLite (dev) / MySQL (production) |
+| Auth | JWT |
+| Email | Gmail API (OAuth2) via googleapis |
+| Scheduling | Calendly API v2 |
+| Cron | node-cron |
+| Routing | Google Maps Directions API (haversine fallback) |
+| Charts | Recharts |
 
-- Next.js (App Router) + TypeScript (strict mode)
-- Supabase (Postgres, Auth, Row Level Security)
-- Tailwind CSS + shadcn/ui
-- Gmail API (Google OAuth)
-- Calendly API + webhooks
-- Zod for runtime validation
-- Vitest for tests
+## Quick Start (Local Development)
 
-## Getting started
-
-This project runs entirely against a **local** Supabase stack (Postgres, Auth, Storage)
-via Docker -- no cloud Supabase project is needed yet. It will be migrated to a hosted
-project later, once the app is fully working.
-
-Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) running.
+### 1. Server
 
 ```bash
+cd server
+cp ../.env.example .env
+# Fill in .env values (DB_TYPE=sqlite works out of the box)
 npm install
-npm run db:start             # starts local Postgres/Auth/Storage via Docker
-cp .env.example .env.local   # .env.local already has working local-dev defaults checked in
 npm run dev
 ```
 
-Open http://localhost:3000. Supabase Studio (local DB browser) is at http://127.0.0.1:54323.
+Server runs on `http://localhost:3001`. Default login: **admin / admin123**.
 
-## Scripts
+### 2. Client
 
-| Command                | Purpose                                                       |
-| ---------------------- | ------------------------------------------------------------- |
-| `npm run dev`          | Start the local dev server                                    |
-| `npm run build`        | Production build                                              |
-| `npm run start`        | Run the production build                                      |
-| `npm run typecheck`    | TypeScript type checking (no emit)                            |
-| `npm run lint`         | ESLint                                                        |
-| `npm run format`       | Prettier — write                                              |
-| `npm run format:check` | Prettier — check only                                         |
-| `npm test`             | Run the unit test suite once                                  |
-| `npm run test:watch`   | Run the unit test suite in watch mode                         |
-| `npm run test:db`      | Run RLS/constraint integration tests (needs local DB running) |
-| `npm run db:start`     | Start the local Supabase stack (Docker)                       |
-| `npm run db:stop`      | Stop the local Supabase stack                                 |
-| `npm run db:status`    | Show local connection URLs and keys                           |
-| `npm run db:reset`     | Drop and re-apply all migrations from scratch                 |
+```bash
+cd client
+npm install
+npm run dev
+```
 
-## Environment variables
+App opens at `http://localhost:5173`. The Vite dev server proxies `/api` to the Express server.
 
-See [.env.example](./.env.example) for the full list, grouped by the phase that
-introduces them. Required variables are validated centrally:
+## Environment Variables
 
-- [src/lib/env.server.ts](./src/lib/env.server.ts) — server-only secrets (never sent to the browser)
-- [src/lib/env.client.ts](./src/lib/env.client.ts) — `NEXT_PUBLIC_*` variables safe for the browser
+Copy `.env.example` to `server/.env` and configure:
 
-## Database
+| Variable | Required | Description |
+|---|---|---|
+| `JWT_SECRET` | Yes | Secret for signing JWT tokens |
+| `DB_TYPE` | No | `sqlite` (default) or `mysql` |
+| `GMAIL_CLIENT_ID` | For Gmail | Google OAuth2 client ID |
+| `GMAIL_CLIENT_SECRET` | For Gmail | Google OAuth2 client secret |
+| `CALENDLY_API_KEY` | For Calendly | Calendly personal access token |
+| `CALENDLY_EVENT_URL` | For Calendly | Your Calendly event link |
+| `GOOGLE_MAPS_API_KEY` | Optional | Enables real route directions |
 
-Migrations live in [supabase/migrations](./supabase/migrations), applied in filename
-order. All 13 tables have Row Level Security enabled. Two access patterns:
+## Features
 
-- **Owner-scoped tables** (profiles, properties, tenants, work_orders, status_history,
-  appointments, communications) — RLS policy `owner_id = auth.uid()`, granted to both
-  `authenticated` and `service_role`. The operator's own session can read/write their
-  own data directly; background jobs use `service_role` (which bypasses RLS) and must
-  filter by `owner_id` themselves.
-- **Service-role-only tables** (integration_credentials, public_action_tokens,
-  webhook_events) — no policies, and table grants are explicitly revoked from
-  `authenticated`/`anon`. These hold OAuth tokens, public-link token hashes, and raw
-  webhook payloads; only trusted server code (never the browser) touches them.
-  (email_imports, ratings, work_order_attachments are a middle case: written by
-  service-role background jobs, read-only for the operator.)
+### Dashboard
+- Summary stat cards: open, scheduled today, completed this week, overdue
+- Recent work orders table + Kanban pipeline view (toggle)
+- Quick-add work order button
 
-Note: recent Supabase versions no longer auto-expose newly created tables to the API
-roles -- every table's migration includes explicit `grant`/`revoke` statements. If you
-add a new table, you must grant it explicitly or `authenticated`/`service_role` will get
-a permission error before RLS is even evaluated.
+### Work Orders
+- Full CRUD with filtering by status, priority, issue type, and search
+- Issue types: electrical, smoke alarm, plumbing/ABS, welding, painting, door repair, HVAC, appliances, general
+- Email history log per work order
+- One-click send scheduling link to tenant
 
-Run `npm run test:db` to verify RLS isolation and constraints against a live database.
+### Gmail Integration (Settings → Connect Gmail)
+1. Create OAuth credentials at [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable Gmail API, add scopes: `gmail.readonly` and `userinfo.email`
+3. Set redirect URI: `http://localhost:3001/api/gmail/callback`
+4. Click "Connect Gmail" in Settings
+5. Use "Sync Now" to parse new maintenance emails into work orders
 
-## Security notes
+### Calendly Integration
+1. Add your Calendly event URL in Settings
+2. Set `CALENDLY_API_KEY` in `.env`
+3. Configure webhook in Calendly dashboard pointing to `https://your-domain.com/api/calendly/webhook`
+4. When a tenant books, the work order auto-updates to "scheduled"
 
-- Service-role Supabase credentials, OAuth client secrets, and webhook signing keys are
-  server-only and validated through `env.server.ts`. They are never imported into
-  client components.
-- Public tenant-facing links use opaque random tokens (Phase 10), never raw database IDs.
-- Row Level Security is enabled on every table holding tenant or work-order data
-  (Phase 2); authenticated users can only see their own records.
+### Automated Follow-ups (node-cron)
+- 48h after creation: first follow-up email if still pending
+- 96h after creation: second follow-up email
+- 24h before appointment: reminder email
+- After completion: completion confirmation email
+- All timings configurable in Settings
 
-## Project status
+### Route Planning
+- Select a date to see all scheduled jobs
+- Auto-orders stops (respects fixed times, minimizes travel)
+- Shows travel time between stops
+- Opens full route in Google Maps
+- Printable route list
 
-This project is built incrementally, phase by phase, with verification (typecheck,
-lint, tests, build) after each phase before moving to the next. See commit history
-for progress.
+### Analytics
+- Work orders over time (line chart, weekly/monthly)
+- Issues by type (bar chart with completion overlay)
+- Busiest days of the week
+- Average resolution time by issue type
+- Status distribution (pie chart)
+- Top units by maintenance frequency
+
+## Bluehost Deployment
+
+### Frontend
+1. Run `cd client && npm run build`
+2. Upload `client/dist/` to `public_html/dispatch/` via FTP
+
+### Backend (Node.js on Bluehost)
+1. Upload `server/` to your home directory (e.g. `~/dispatch-server/`)
+2. In cPanel → Setup Node.js App:
+   - Node.js version: 18+
+   - Application root: `dispatch-server`
+   - Startup file: `app.js`
+3. Set environment variables in cPanel Node.js App environment section
+4. Set `DB_TYPE=mysql` and create a MySQL database in cPanel → MySQL Databases
+
+### GitHub Actions CI/CD
+Configure these secrets in your GitHub repository (Settings → Secrets):
+
+| Secret | Description |
+|---|---|
+| `FTP_HOST` | Your Bluehost FTP hostname |
+| `FTP_USERNAME` | FTP username |
+| `FTP_PASSWORD` | FTP password |
+| `VITE_API_BASE_URL` | Your production API URL |
+
+Push to `main` to trigger automatic deployment.
+
+## Project Structure
+
+```
+maintenance_dispatch/
+├── client/                 # React + Vite frontend
+│   ├── src/
+│   │   ├── components/     # Layout, modals, KanbanBoard, StatusBadge
+│   │   ├── context/        # AuthContext
+│   │   ├── lib/            # api.js (axios), constants.js
+│   │   └── pages/          # Dashboard, WorkOrders, Schedule, RouteView, Analytics, Settings
+│   └── package.json
+├── server/                 # Node.js + Express backend
+│   ├── db/                 # db.js (SQLite/MySQL abstraction), schema.sql
+│   ├── middleware/         # auth.js (JWT)
+│   ├── routes/             # workorders, gmail, calendly, routes, analytics, settings
+│   ├── services/           # gmailParser, calendlyService, followupCron, routeOptimizer
+│   └── app.js
+├── .env.example
+├── .github/workflows/
+│   └── deploy.yml
+└── README.md
+```
+
+## Default Credentials
+
+- **Username:** `admin`
+- **Password:** `admin123`
+
+Change the password by generating a new bcrypt hash and setting `ADMIN_PASS_HASH` in `.env`:
+```bash
+node -e "console.log(require('bcryptjs').hashSync('yournewpassword', 10))"
+```

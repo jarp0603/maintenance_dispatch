@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+node_modules/
+client/node_modules/
+server/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -43,3 +46,9 @@ next-env.d.ts
 
 # Claude Code local tool settings (machine-specific, not project config)
 .claude/settings.local.json
+
+# client/server build artifacts and local DB
+client/dist/
+server/data/
+server/.env
+
