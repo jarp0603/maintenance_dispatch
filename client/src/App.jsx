@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
-  LayoutDashboard, Inbox, Wrench, Route as RouteIcon, Sparkles,
+  LayoutDashboard, Inbox, Wrench, Route as RouteIcon,
   Mail, Phone, MapPin, Clock, Calendar, CheckCircle2, AlertTriangle,
-  ChevronRight, RefreshCw, Send, TrendingUp, Building2, User, X,
-  Loader2, Navigation, ArrowRight, Play, MessageSquare, AlertCircle,
-  Truck, Zap, LogOut, Settings, KeyRound,
+  ChevronRight, RefreshCw, Building2, User, X,
+  Loader2, Navigation, ArrowRight, Play, AlertCircle,
+  Truck, LogOut,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, LineChart, Line,
@@ -22,7 +22,6 @@ const NAV = [
   { id: "inbox",     label: "Inbox",       icon: Inbox           },
   { id: "orders",    label: "Work Orders", icon: Wrench          },
   { id: "routes",    label: "Routes",      icon: RouteIcon       },
-  { id: "analyst",   label: "Analyst",     icon: Sparkles        },
 ];
 
 // Map backend issue_type → display category
@@ -146,24 +145,7 @@ async function apiFetch(path, opts = {}) {
   return res.json();
 }
 
-/* ─── AI helpers (via backend proxy) ────────────────────────────── */
-
-async function parseEmailViaBackend(email) {
-  return apiFetch("/ai/parse-email", {
-    method: "POST",
-    body: JSON.stringify({ from: email.from, subject: email.subject, body: email.body }),
-  });
-}
-
-async function analyzeViaBackend(summary, question) {
-  const data = await apiFetch("/ai/analyze", {
-    method: "POST",
-    body: JSON.stringify({ summary, question }),
-  });
-  return data.result;
-}
-
-/* ─── Route optimizer (same as reference) ───────────────────────── */
+/* ─── Route optimizer ───────────────────────────────────────────── */
 
 function optimizeRoute(stops, settings) {
   if (stops.length === 0) return null;
@@ -224,31 +206,6 @@ function EmptyState({ icon: Icon, title, hint }) {
       </div>
       <div className="text-sm font-semibold text-slate-700">{title}</div>
       {hint && <div className="text-xs text-slate-500 mt-1 max-w-xs">{hint}</div>}
-    </div>
-  );
-}
-
-function MiniMarkdown({ text }) {
-  const lines = (text || "").split("\n").map(l => l.trim()).filter(Boolean);
-  const renderInline = s => s.split(/(\*\*[^*]+\*\*)/g).map((p, i) =>
-    p.startsWith("**") && p.endsWith("**")
-      ? <strong key={i} className="font-semibold text-slate-900">{p.slice(2, -2)}</strong>
-      : <span key={i}>{p}</span>
-  );
-  return (
-    <div className="space-y-2">
-      {lines.map((l, i) => {
-        const bullet = /^[-*•]\s+/.test(l);
-        const clean = l.replace(/^[-*•]\s+/, "");
-        return bullet ? (
-          <div key={i} className="flex gap-2 text-sm text-slate-700 leading-relaxed">
-            <span className="mt-1.5"><Dot color={AMBER} /></span>
-            <span>{renderInline(clean)}</span>
-          </div>
-        ) : (
-          <p key={i} className="text-sm text-slate-700 leading-relaxed">{renderInline(clean)}</p>
-        );
-      })}
     </div>
   );
 }
@@ -465,7 +422,6 @@ export default function App() {
         {view === "inbox"     && <InboxView {...shared} />}
         {view === "orders"    && <Orders {...shared} />}
         {view === "routes"    && <Routes {...shared} />}
-        {view === "analyst"   && <Analyst {...shared} />}
       </main>
 
       {toast && (
@@ -610,12 +566,10 @@ function Dashboard({ orders, go, settings, flash, fetchOrders }) {
 
 /* ─── Inbox ─────────────────────────────────────────────────────── */
 
-function InboxView({ addOrder, flash }) {
+function InboxView({ flash }) {
   const [syncing, setSyncing] = useState(false);
   const [gmailStatus, setGmailStatus] = useState(null);
   const [syncResult, setSyncResult] = useState(null);
-  const [parsingId, setParsingId] = useState(null);
-  const [preview, setPreview] = useState(null);
   const [emails, setEmails] = useState([]);
   const [error, setError] = useState(null);
 
@@ -640,33 +594,6 @@ function InboxView({ addOrder, flash }) {
       const { url } = await apiFetch("/gmail/auth-url");
       window.location.href = url;
     } catch (err) { setError(err.message); }
-  };
-
-  const handleParse = async (email) => {
-    setError(null); setParsingId(email.id);
-    try {
-      const data = await parseEmailViaBackend(email);
-      setPreview({ email, data });
-    } catch {
-      setError("AI parsing is not configured on the backend yet. Add ANTHROPIC_API_KEY to your Railway environment variables.");
-    } finally { setParsingId(null); }
-  };
-
-  const confirmCreate = async () => {
-    const { email, data } = preview;
-    const issueType = Object.entries(CATEGORY_MAP).find(([, v]) => v.toLowerCase() === (data.category || "").toLowerCase())?.[0] || "general";
-    await addOrder({
-      tenant_name: data.tenant_name || email.name,
-      unit_number: data.unit || "—",
-      address: data.address || "Unknown address",
-      issue_type: issueType,
-      priority: PRIORITY[data.priority] ? data.priority : "medium",
-      notes: data.description || email.subject,
-      tenant_email: email.from,
-      source: "gmail",
-    });
-    setPreview(null);
-    setEmails(prev => prev.filter(e => e.id !== email.id));
   };
 
   return (
@@ -697,65 +624,32 @@ function InboxView({ addOrder, flash }) {
       {syncResult && (
         <div className="mb-4 flex items-start gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
           <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-          Synced {syncResult.checked || 0} emails · {syncResult.created || 0} work orders created
+          Synced {syncResult.checked || 0} emails · {syncResult.created || 0} work orders created automatically
         </div>
       )}
 
       {emails.length === 0 ? (
         <EmptyState icon={Inbox} title={gmailStatus?.connected ? "Sync to check for new emails" : "Connect Gmail to get started"}
-          hint={gmailStatus?.connected ? "Click 'Sync now' to fetch the latest maintenance emails from your inbox." : "Connect your Gmail account to pull in tenant maintenance requests automatically."} />
+          hint={gmailStatus?.connected ? "Click 'Sync now' to fetch the latest maintenance emails. Work orders are created automatically." : "Connect your Gmail account to pull in tenant maintenance requests automatically."} />
       ) : (
         <div className="space-y-3">
           {emails.map(email => (
             <div key={email.id} className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
               <div className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-stone-100 flex items-center justify-center text-xs font-semibold text-slate-500 shrink-0">
-                      {(email.name || "?").split(" ").map(n => n[0]).slice(0, 2).join("")}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-slate-900 truncate">{email.subject}</div>
-                      <div className="text-xs text-slate-500 font-mono">{email.from}</div>
-                    </div>
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-stone-100 flex items-center justify-center text-xs font-semibold text-slate-500 shrink-0">
+                    {(email.name || "?").split(" ").map(n => n[0]).slice(0, 2).join("")}
                   </div>
-                  <button onClick={() => handleParse(email)} disabled={parsingId === email.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white shrink-0 disabled:opacity-60" style={{ background: INK }}>
-                    {parsingId === email.id ? <Spinner className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" style={{ color: AMBER }} />}
-                    {parsingId === email.id ? "Parsing…" : "Parse"}
-                  </button>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900 truncate">{email.subject}</div>
+                    <div className="text-xs text-slate-500 font-mono">{email.from}</div>
+                  </div>
                 </div>
                 <p className="text-sm text-slate-600 mt-3 leading-relaxed">{email.body}</p>
               </div>
             </div>
           ))}
         </div>
-      )}
-
-      {preview && (
-        <Modal onClose={() => setPreview(null)} title="Review extracted work order" icon={Sparkles}>
-          <p className="text-xs text-slate-500 mb-4">AI parsed this from the email. Confirm to create the work order.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Tenant"   value={preview.data.tenant_name} />
-            <Field label="Unit"     value={preview.data.unit} mono />
-            <Field label="Phone"    value={preview.data.phone || "—"} mono />
-            <Field label="Property" value={preview.data.property_name} />
-            <Field label="Address"  value={preview.data.address} full />
-            <div>
-              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wide mb-1">Category</div>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{preview.data.category}</span>
-            </div>
-            <div>
-              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wide mb-1">Priority</div>
-              <PriorityBadge p={PRIORITY[preview.data.priority] ? preview.data.priority : "medium"} />
-            </div>
-            <Field label="Description" value={preview.data.description} full />
-          </div>
-          <div className="flex gap-2 mt-5">
-            <button onClick={() => setPreview(null)} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 bg-stone-100 hover:bg-stone-200">Discard</button>
-            <button onClick={confirmCreate} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white" style={{ background: INK }}>Create work order</button>
-          </div>
-        </Modal>
       )}
     </div>
   );
@@ -1183,84 +1077,4 @@ function MiniStat({ label, value }) {
   );
 }
 
-/* ─── Analyst ───────────────────────────────────────────────────── */
-
-function Analyst({ orders, settings }) {
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const [q, setQ] = useState("");
-
-  const summary = useMemo(() => {
-    const byStatus = {}; Object.keys(STATUS).forEach(k => byStatus[k] = orders.filter(o => o.status === k).length);
-    const byCat = {}; orders.forEach(o => { byCat[o.category] = (byCat[o.category] || 0) + 1; });
-    const byProp = {}; orders.forEach(o => { byProp[o.property.name] = (byProp[o.property.name] || 0) + 1; });
-    const weekAgo = Date.now() - 7 * 864e5;
-    const completedWeek = orders.filter(o => o.status === "completed" && o.completedAt && new Date(o.completedAt).getTime() > weekAgo).length;
-    return { total: orders.length, by_status: byStatus, by_category: byCat, by_property: byProp, completed_this_week: completedWeek, open_emergencies: orders.filter(o => o.priority === "emergency" && !["completed","cancelled"].includes(o.status)).length };
-  }, [orders, settings]);
-
-  const ask = async (question) => {
-    setError(null); setLoading(true); setResult(null);
-    try { setResult(await analyzeViaBackend(summary, question)); }
-    catch (e) { setError("AI analyst requires ANTHROPIC_API_KEY on the Railway backend. Add it in your Railway environment variables."); }
-    finally { setLoading(false); }
-  };
-
-  const suggestions = [
-    "What's the biggest bottleneck right now?",
-    "Which properties generate the most work?",
-    "Where am I losing time in scheduling?",
-    "What should I prioritize today?",
-  ];
-
-  return (
-    <div className="p-5 md:p-7 max-w-4xl mx-auto">
-      <Header title="Work-order analyst" subtitle="AI insights over your live pipeline data" />
-
-      <div className="grid sm:grid-cols-4 gap-3 mb-5">
-        <SumCard label="Total orders"       value={summary.total} />
-        <SumCard label="Completed (7d)"     value={summary.completed_this_week} />
-        <SumCard label="Open emergencies"   value={summary.open_emergencies} alert={summary.open_emergencies > 0} />
-        <SumCard label="Pending"            value={summary.by_status.pending || 0} />
-      </div>
-
-      <div className="bg-white rounded-2xl border border-stone-200 p-4 mb-4">
-        <div className="flex gap-2">
-          <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && q.trim() && ask(q)}
-            placeholder="Ask about your work orders…" className="flex-1 px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-stone-400" />
-          <button onClick={() => ask(q.trim() || undefined)} disabled={loading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-60" style={{ background: INK }}>
-            {loading ? <Spinner className="w-4 h-4" /> : <Sparkles className="w-4 h-4" style={{ color: AMBER }} />} Analyze
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-1.5 mt-3">
-          {suggestions.map(s => (
-            <button key={s} onClick={() => { setQ(s); ask(s); }} className="text-xs text-slate-600 bg-stone-100 hover:bg-stone-200 px-2.5 py-1.5 rounded-full">{s}</button>
-          ))}
-        </div>
-      </div>
-
-      {error && <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />{error}</div>}
-      {loading && <div className="bg-white rounded-2xl border border-stone-200 p-6 flex items-center gap-2 text-sm text-slate-500"><Spinner className="w-4 h-4" /> Reading your pipeline…</div>}
-      {result && !loading && (
-        <div className="bg-white rounded-2xl border border-stone-200 p-5">
-          <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-800"><TrendingUp className="w-4 h-4" style={{ color: AMBER }} /> Analysis</div>
-          <MiniMarkdown text={result} />
-        </div>
-      )}
-      {!result && !loading && !error && (
-        <EmptyState icon={Sparkles} title="Ask the analyst anything" hint="It reads your live work orders and surfaces bottlenecks, risks, and next actions." />
-      )}
-    </div>
-  );
-}
-
-function SumCard({ label, value, alert }) {
-  return (
-    <div className={cx("rounded-2xl border p-4", alert ? "border-red-200 bg-red-50" : "border-stone-200 bg-white")}>
-      <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className={cx("text-2xl font-semibold font-mono mt-1", alert ? "text-red-700" : "text-slate-900")}>{value}</div>
-    </div>
-  );
-}
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
