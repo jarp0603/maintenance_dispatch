@@ -279,7 +279,7 @@ function Login({ onLogin }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password"
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
               className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-stone-400" />
           </div>
           <button type="submit" disabled={loading}
@@ -1072,4 +1072,8 @@ function MiniStat({ label, value }) {
   return (
     <div className="bg-white rounded-xl border border-stone-200 p-3 text-center">
       <div className="text-lg font-semibold font-mono text-slate-900">{value}</div>
-      <div
+      <div className="text-[11px] text-slate-400">{label}</div>
+    </div>
+  );
+}
+
