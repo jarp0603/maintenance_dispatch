@@ -2,10 +2,10 @@
 // Backend proxy for Anthropic API — keeps the API key off the browser
 const express = require("express");
 const router = express.Router();
-const { verifyToken } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 // All AI routes require authentication
-router.use(verifyToken);
+router.use(requireAuth);
 
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-3-5-haiku-20241022";
