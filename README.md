@@ -1,163 +1,89 @@
 # Maintenance Dispatch
 
-A full-stack property maintenance dispatch web application for tracking work orders, scheduling tenant appointments, parsing maintenance request emails, and optimizing daily routes.
+Maintenance Dispatch is a mobile-friendly work-order application deployed as a React frontend on Bluehost with an Express API on Railway and a MySQL database on Bluehost.
 
-## Tech Stack
+> Audit status: documentation reflects the repository and public deployment as reviewed on June 17, 2026. No production data, authenticated endpoints, hosting configuration, or deployed files were changed during the audit.
 
-| Layer | Technology |
-|---|---|
-| Frontend | React 18 + Vite + Tailwind CSS + React Router |
-| Backend | Node.js + Express |
-| Database | SQLite (dev) / MySQL (production) |
-| Auth | JWT |
-| Email | Gmail API (OAuth2) via googleapis |
-| Scheduling | Calendly API v2 |
-| Cron | node-cron |
-| Routing | Google Maps Directions API (haversine fallback) |
-| Charts | Recharts |
+## Canonical application
 
-## Quick Start (Local Development)
+| Layer | Location | Technology | Deployment |
+| --- | --- | --- | --- |
+| Frontend | `client/` | React 18, Vite 5, Tailwind CSS 3 | Bluehost at `/dispatch/` |
+| API | `server/` | Node.js, Express 4, JWT | Railway |
+| Database | `server/schema.sql` | MySQL in production; SQLite for isolated local startup | Bluehost |
+| Deployment automation | `.github/workflows/` | GitHub Actions and FTP | Bluehost frontend only |
 
-### 1. Server
+The root-level Next.js/Supabase application under `src/` and `supabase/` is an unfinished alternate implementation. It is not the production target and should not be configured or deployed without an explicit architecture decision.
+
+## Current capabilities
+
+The deployed client/API pair currently includes:
+
+- Administrator login and JWT-authenticated API requests
+- Dashboard statistics and work-order list, board, create, edit, and delete flows
+- Status, priority, emergency flags, scheduling fields, notes, and basic history data
+- Gmail import, Calendly integration, route generation, analytics, and settings endpoints
+- Keyword-based email parsing that can support rule-based categorization
+
+Several planned capabilities are incomplete or absent: role-based access, managed properties and units, tenants, technicians and assignments, reliable MySQL migrations, attachments, complete activity history, robust search/filtering, and production-safe backups and rollback.
+
+## Important policy and safety notes
+
+- This project must not use paid AI APIs. The audited API still registers a legacy Anthropic route; do not configure or use it. Removing that route is a priority functional change that requires approval after this documentation-only pull request.
+- Never commit credentials or copy production values into `.env.example`.
+- Do not expose server environment variables to Vite except intentionally public `VITE_*` build values.
+- Do not run `server/schema.sql` manually against production without a verified backup and migration review.
+- There are unsafe development credential fallbacks in the current server. They are documented as a security finding, not as supported configuration.
+
+## Local development
+
+Prerequisites: a current Node.js LTS release and npm.
+
+### API
 
 ```bash
 cd server
+npm ci
 cp ../.env.example .env
-# Fill in .env values (DB_TYPE=sqlite works out of the box)
-npm install
 npm run dev
 ```
 
-Server runs on `http://localhost:3001`. Default login: **admin / admin123**.
+The example defaults to an isolated local SQLite database. Replace every `replace-with-*` value before testing authentication or integrations. Do not point local development at the production MySQL database.
 
-### 2. Client
+### Frontend
 
 ```bash
 cd client
-npm install
-npm run dev
+npm ci
+VITE_API_URL=http://localhost:3001 npm run dev
 ```
 
-App opens at `http://localhost:5173`. The Vite dev server proxies `/api` to the Express server.
+For PowerShell:
 
-## Environment Variables
-
-Copy `.env.example` to `server/.env` and configure:
-
-| Variable | Required | Description |
-|---|---|---|
-| `JWT_SECRET` | Yes | Secret for signing JWT tokens |
-| `DB_TYPE` | No | `sqlite` (default) or `mysql` |
-| `GMAIL_CLIENT_ID` | For Gmail | Google OAuth2 client ID |
-| `GMAIL_CLIENT_SECRET` | For Gmail | Google OAuth2 client secret |
-| `CALENDLY_API_KEY` | For Calendly | Calendly personal access token |
-| `CALENDLY_EVENT_URL` | For Calendly | Your Calendly event link |
-| `GOOGLE_MAPS_API_KEY` | Optional | Enables real route directions |
-
-## Features
-
-### Dashboard
-- Summary stat cards: open, scheduled today, completed this week, overdue
-- Recent work orders table + Kanban pipeline view (toggle)
-- Quick-add work order button
-
-### Work Orders
-- Full CRUD with filtering by status, priority, issue type, and search
-- Issue types: electrical, smoke alarm, plumbing/ABS, welding, painting, door repair, HVAC, appliances, general
-- Email history log per work order
-- One-click send scheduling link to tenant
-
-### Gmail Integration (Settings → Connect Gmail)
-1. Create OAuth credentials at [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable Gmail API, add scopes: `gmail.readonly` and `userinfo.email`
-3. Set redirect URI: `http://localhost:3001/api/gmail/callback`
-4. Click "Connect Gmail" in Settings
-5. Use "Sync Now" to parse new maintenance emails into work orders
-
-### Calendly Integration
-1. Add your Calendly event URL in Settings
-2. Set `CALENDLY_API_KEY` in `.env`
-3. Configure webhook in Calendly dashboard pointing to `https://your-domain.com/api/calendly/webhook`
-4. When a tenant books, the work order auto-updates to "scheduled"
-
-### Automated Follow-ups (node-cron)
-- 48h after creation: first follow-up email if still pending
-- 96h after creation: second follow-up email
-- 24h before appointment: reminder email
-- After completion: completion confirmation email
-- All timings configurable in Settings
-
-### Route Planning
-- Select a date to see all scheduled jobs
-- Auto-orders stops (respects fixed times, minimizes travel)
-- Shows travel time between stops
-- Opens full route in Google Maps
-- Printable route list
-
-### Analytics
-- Work orders over time (line chart, weekly/monthly)
-- Issues by type (bar chart with completion overlay)
-- Busiest days of the week
-- Average resolution time by issue type
-- Status distribution (pie chart)
-- Top units by maintenance frequency
-
-## Bluehost Deployment
-
-### Frontend
-1. Run `cd client && npm run build`
-2. Upload `client/dist/` to `public_html/dispatch/` via FTP
-
-### Backend (Node.js on Bluehost)
-1. Upload `server/` to your home directory (e.g. `~/dispatch-server/`)
-2. In cPanel → Setup Node.js App:
-   - Node.js version: 18+
-   - Application root: `dispatch-server`
-   - Startup file: `app.js`
-3. Set environment variables in cPanel Node.js App environment section
-4. Set `DB_TYPE=mysql` and create a MySQL database in cPanel → MySQL Databases
-
-### GitHub Actions CI/CD
-Configure these secrets in your GitHub repository (Settings → Secrets):
-
-| Secret | Description |
-|---|---|
-| `FTP_HOST` | Your Bluehost FTP hostname |
-| `FTP_USERNAME` | FTP username |
-| `FTP_PASSWORD` | FTP password |
-| `VITE_API_BASE_URL` | Your production API URL |
-
-Push to `main` to trigger automatic deployment.
-
-## Project Structure
-
-```
-maintenance_dispatch/
-├── client/                 # React + Vite frontend
-│   ├── src/
-│   │   ├── components/     # Layout, modals, KanbanBoard, StatusBadge
-│   │   ├── context/        # AuthContext
-│   │   ├── lib/            # api.js (axios), constants.js
-│   │   └── pages/          # Dashboard, WorkOrders, Schedule, RouteView, Analytics, Settings
-│   └── package.json
-├── server/                 # Node.js + Express backend
-│   ├── db/                 # db.js (SQLite/MySQL abstraction), schema.sql
-│   ├── middleware/         # auth.js (JWT)
-│   ├── routes/             # workorders, gmail, calendly, routes, analytics, settings
-│   ├── services/           # gmailParser, calendlyService, followupCron, routeOptimizer
-│   └── app.js
-├── .env.example
-├── .github/workflows/
-│   └── deploy.yml
-└── README.md
+```powershell
+Set-Location client
+npm.cmd ci
+$env:VITE_API_URL = "http://localhost:3001"
+npm.cmd run dev
 ```
 
-## Default Credentials
+## Validation baseline
 
-- **Username:** `admin`
-- **Password:** `admin123`
+The audit established this baseline without connecting to production data:
 
-Change the password by generating a new bcrypt hash and setting `ADMIN_PASS_HASH` in `.env`:
-```bash
-node -e "console.log(require('bcryptjs').hashSync('yournewpassword', 10))"
-```
+- `client` production build: passes, with a bundle-size warning
+- isolated `server` startup and `/api/health`: passes with SQLite and placeholder values
+- lint: fails with existing errors in active and unused frontend code
+- root Next.js build: fails because two imported UI packages are undeclared
+- unit assertions: 13 pass, but the root command also discovers dependency tests and exits unsuccessfully
+- database tests: require a local Supabase/Postgres service and do not currently run in a clean checkout
+
+See the audit details and recommended order of work in [docs/HANDOFF.md](docs/HANDOFF.md).
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Deployment and rollback](docs/DEPLOYMENT.md)
+- [Audit findings and development plan](docs/HANDOFF.md)
+
+No functional changes or deployments should begin until the documentation pull request is reviewed and approved.
