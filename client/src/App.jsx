@@ -242,7 +242,7 @@ function Modal({ children, onClose, title, icon: Icon }) {
 /* ─── Login ─────────────────────────────────────────────────────── */
 
 function Login({ onLogin }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -250,7 +250,7 @@ function Login({ onLogin }) {
   const submit = async e => {
     e.preventDefault(); setError(null); setLoading(true);
     try {
-      const data = await apiFetch("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+      const data = await apiFetch("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
       localStorage.setItem("dispatch_token", data.token);
       onLogin(data.user || data);
     } catch (err) {
@@ -273,13 +273,13 @@ function Login({ onLogin }) {
         {error && <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</div>}
         <form onSubmit={submit} className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+            <label className="block text-xs font-medium text-slate-500 mb-1">Username</label>
+            <input type="text" value={username} onChange={e => setUsername(e.target.value)} required autoComplete="username"
               className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-stone-400" />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password"
               className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-stone-400" />
           </div>
           <button type="submit" disabled={loading}
@@ -1072,8 +1072,4 @@ function MiniStat({ label, value }) {
   return (
     <div className="bg-white rounded-xl border border-stone-200 p-3 text-center">
       <div className="text-lg font-semibold font-mono text-slate-900">{value}</div>
-      <div className="text-[11px] text-slate-400">{label}</div>
-    </div>
-  );
-}
-
+      <div
