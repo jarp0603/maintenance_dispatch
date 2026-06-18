@@ -1,14 +1,14 @@
 name: Deploy to Bluehost (DISABLED)
 
+# Disabled - frontend deploys use deploy-frontend.yml.
+# Backend is auto-deployed by Railway from GitHub.
+
 on:
   workflow_dispatch:
-      # Disabled - use deploy-frontend.yml for frontend deploys
-          # Backend is auto-deployed by Railway from GitHub
 
-          jobs:
-            noop:
-                runs-on: ubuntu-latest
-                    if: false
-                        steps:
-                              - run: echo disabled
-                              
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    if: false
+    steps:
+      - run: echo disabled
