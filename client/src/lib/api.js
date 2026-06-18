@@ -1,6 +1,14 @@
 import axios from 'axios';
 
-const api = axios.create({ baseURL: '/api' });
+// In production the frontend (Bluehost) and API (Railway) live on different
+// origins, so the build injects VITE_API_BASE_URL. In dev the var is unset and
+// requests fall through to the Vite proxy via a relative '/api' path.
+// Tolerate a base provided with or without a trailing slash or '/api' suffix.
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '')
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+
+const api = axios.create({ baseURL: `${API_BASE}/api` });
 
 // Attach JWT token to every request
 api.interceptors.request.use((config) => {
