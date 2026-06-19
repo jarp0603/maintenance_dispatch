@@ -143,9 +143,17 @@ CREATE TABLE IF NOT EXISTS work_orders (
   tenant_id       INT UNSIGNED NULL,
   created_by      INT UNSIGNED NULL,            -- users.id
   assigned_to     INT UNSIGNED NULL,            -- denormalized convenience; see assignments
+  -- Denormalized convenience fields (mirror the linked tenant/unit/property).
+  -- The current UI reads/writes these directly; the *_id FKs above support the
+  -- normalized tenants/properties features. See ADR-0006.
+  tenant_name     VARCHAR(150) NULL,
+  tenant_email    VARCHAR(255) NULL,
+  unit_number     VARCHAR(50)  NULL,
+  address         VARCHAR(255) NULL,
+  notes           TEXT         NULL,
   issue_type      VARCHAR(60)  NOT NULL DEFAULT 'general',
   description     TEXT         NULL,
-  priority        ENUM('low','medium','high','urgent') NOT NULL DEFAULT 'medium',
+  priority        ENUM('low','medium','high','urgent','emergency') NOT NULL DEFAULT 'medium',
   status          ENUM('new','pending','contacted','scheduled','in_progress',
                        'completed','no_response','cancelled') NOT NULL DEFAULT 'new',
   scheduled_date  DATE         NULL,

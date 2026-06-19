@@ -11,85 +11,95 @@ final class WorkOrder
         'new', 'pending', 'contacted', 'scheduled',
         'in_progress', 'completed', 'no_response', 'cancelled',
     ];
-    public const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+    public const PRIORITIES = ['low', 'medium', 'high', 'urgent', 'emergency'];
+
+    private const SORTABLE = ['created_at', 'updated_at', 'scheduled_date', 'priority', 'status'];
+
+    private const SELECT = "SELECT wo.id, wo.wo_number, wo.tenant_name, wo.tenant_email,
+                wo.unit_number, wo.address, wo.issue_type, wo.description, wo.priority,
+                wo.status, wo.scheduled_date, wo.scheduled_time, wo.notes, wo.source,
+                wo.assigned_to, wo.created_at, wo.updated_at, wo.completed_at,
+                u.full_name AS technician_name
+            FROM work_orders wo
+            LEFT JOIN users u ON u.id = wo.assigned_to";
 
     /**
-     * Filtered list. $filters may contain: status, property_id, unit_id,
-     * tenant_id, assigned_to, priority, scheduled_date, created_from,
-     * created_to, completed_from, completed_to, search, include_archived.
+     * Filtered + paginated list. Returns ['data' => rows, 'total' => int].
+     * Recognized filters: status, priority, issue_type, assigned_to, search,
+     * scheduled_date, created_from/to, completed_from/to, include_archived,
+     * page, limit, sort, order.
      */
-    public static function list(array $filters): array
+    public static function list(array $f): array
     {
         $where = [];
         $params = [];
 
-        if (empty($filters['include_archived'])) {
+        if (empty($f['include_archived'])) {
             $where[] = 'wo.archived_at IS NULL';
         }
-        $map = [
+        $eq = [
             'status'         => 'wo.status = ?',
             'priority'       => 'wo.priority = ?',
-            'property_id'    => 'wo.property_id = ?',
-            'unit_id'        => 'wo.unit_id = ?',
-            'tenant_id'      => 'wo.tenant_id = ?',
+            'issue_type'     => 'wo.issue_type = ?',
             'assigned_to'    => 'wo.assigned_to = ?',
             'scheduled_date' => 'wo.scheduled_date = ?',
         ];
-        foreach ($map as $key => $clause) {
-            if (isset($filters[$key]) && $filters[$key] !== '') {
+        foreach ($eq as $key => $clause) {
+            if (isset($f[$key]) && $f[$key] !== '') {
                 $where[] = $clause;
-                $params[] = $filters[$key];
+                $params[] = $f[$key];
             }
         }
-        if (!empty($filters['created_from'])) { $where[] = 'wo.created_at >= ?'; $params[] = $filters['created_from']; }
-        if (!empty($filters['created_to']))   { $where[] = 'wo.created_at <= ?'; $params[] = $filters['created_to']; }
-        if (!empty($filters['completed_from'])) { $where[] = 'wo.completed_at >= ?'; $params[] = $filters['completed_from']; }
-        if (!empty($filters['completed_to']))   { $where[] = 'wo.completed_at <= ?'; $params[] = $filters['completed_to']; }
-        if (!empty($filters['search'])) {
-            $where[] = '(wo.wo_number LIKE ? OR wo.description LIKE ? OR t.full_name LIKE ?)';
-            $like = '%' . $filters['search'] . '%';
-            array_push($params, $like, $like, $like);
+        if (!empty($f['created_from']))   { $where[] = 'wo.created_at >= ?';   $params[] = $f['created_from']; }
+        if (!empty($f['created_to']))     { $where[] = 'wo.created_at <= ?';   $params[] = $f['created_to']; }
+        if (!empty($f['completed_from'])) { $where[] = 'wo.completed_at >= ?'; $params[] = $f['completed_from']; }
+        if (!empty($f['completed_to']))   { $where[] = 'wo.completed_at <= ?'; $params[] = $f['completed_to']; }
+        if (!empty($f['search'])) {
+            $where[] = '(wo.wo_number LIKE ? OR wo.tenant_name LIKE ? OR wo.unit_number LIKE ?
+                         OR wo.address LIKE ? OR wo.description LIKE ?)';
+            $like = '%' . $f['search'] . '%';
+            array_push($params, $like, $like, $like, $like, $like);
         }
+        $whereSql = $where !== [] ? (' WHERE ' . implode(' AND ', $where)) : '';
 
-        $sql = "SELECT wo.*, t.full_name AS tenant_name, p.name AS property_name,
-                       un.unit_number, u.full_name AS technician_name
-                FROM work_orders wo
-                LEFT JOIN tenants t   ON t.id = wo.tenant_id
-                LEFT JOIN properties p ON p.id = wo.property_id
-                LEFT JOIN units un    ON un.id = wo.unit_id
-                LEFT JOIN users u     ON u.id = wo.assigned_to";
-        if ($where !== []) {
-            $sql .= ' WHERE ' . implode(' AND ', $where);
-        }
-        $sql .= ' ORDER BY wo.created_at DESC LIMIT 500';
-        return Database::all($sql, $params);
+        // Total (for pagination)
+        $totalRow = Database::one('SELECT COUNT(*) AS c FROM work_orders wo' . $whereSql, $params);
+        $total = (int) ($totalRow['c'] ?? 0);
+
+        // Sort (whitelisted) + order
+        $sort = in_array($f['sort'] ?? '', self::SORTABLE, true) ? $f['sort'] : 'created_at';
+        $order = strtoupper($f['order'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
+
+        // Pagination (clamped)
+        $limit = isset($f['limit']) ? max(1, min(100, (int) $f['limit'])) : 25;
+        $page  = isset($f['page']) ? max(1, (int) $f['page']) : 1;
+        $offset = ($page - 1) * $limit;
+
+        $sql = self::SELECT . $whereSql . " ORDER BY wo.{$sort} {$order} LIMIT {$limit} OFFSET {$offset}";
+        $rows = Database::all($sql, $params);
+
+        return ['data' => $rows, 'total' => $total];
     }
 
     public static function find(int $id): ?array
     {
-        $wo = Database::one(
-            "SELECT wo.*, t.full_name AS tenant_name, t.email AS tenant_email,
-                    t.phone AS tenant_phone, p.name AS property_name, p.address AS property_address,
-                    un.unit_number, u.full_name AS technician_name
-             FROM work_orders wo
-             LEFT JOIN tenants t   ON t.id = wo.tenant_id
-             LEFT JOIN properties p ON p.id = wo.property_id
-             LEFT JOIN units un    ON un.id = wo.unit_id
-             LEFT JOIN users u     ON u.id = wo.assigned_to
-             WHERE wo.id = ? LIMIT 1",
-            [$id]
-        );
+        $wo = Database::one(self::SELECT . ' WHERE wo.id = ? LIMIT 1', [$id]);
         if (!$wo) {
             return null;
         }
-        $wo['notes'] = Database::all(
-            'SELECT n.*, u.full_name AS author
+        $wo['email_logs'] = Database::all(
+            'SELECT id, email_type, recipient, status, sent_at
+             FROM email_logs WHERE work_order_id = ? ORDER BY sent_at DESC',
+            [$id]
+        );
+        $wo['note_history'] = Database::all(
+            'SELECT n.id, n.note, n.is_completion, n.created_at, u.full_name AS author
              FROM work_order_notes n LEFT JOIN users u ON u.id = n.user_id
              WHERE n.work_order_id = ? ORDER BY n.created_at DESC',
             [$id]
         );
         $wo['status_history'] = Database::all(
-            'SELECT h.*, u.full_name AS changed_by_name
+            'SELECT h.from_status, h.to_status, h.changed_at, u.full_name AS changed_by_name
              FROM work_order_status_history h LEFT JOIN users u ON u.id = h.changed_by
              WHERE h.work_order_id = ? ORDER BY h.changed_at DESC',
             [$id]
@@ -116,55 +126,59 @@ final class WorkOrder
         return sprintf('WO-%s-%04d', $year, $seq);
     }
 
+    private const WRITABLE = [
+        'tenant_name', 'tenant_email', 'unit_number', 'address', 'notes',
+        'issue_type', 'description', 'priority', 'status',
+        'scheduled_date', 'scheduled_time', 'assigned_to',
+        'property_id', 'unit_id', 'tenant_id',
+    ];
+
     public static function create(array $d, int $userId): int
     {
-        $number = self::nextNumber();
+        $cols = ['wo_number', 'created_by', 'source'];
+        $vals = [self::nextNumber(), $userId, $d['source'] ?? 'manual'];
+        foreach (self::WRITABLE as $f) {
+            if (array_key_exists($f, $d)) {
+                $cols[] = $f;
+                $vals[] = $d[$f] === '' ? null : $d[$f];
+            }
+        }
+        $status = $d['status'] ?? 'new';
+        if (!in_array('status', $cols, true)) {
+            $cols[] = 'status';
+            $vals[] = $status;
+        }
+        $placeholders = implode(',', array_fill(0, count($cols), '?'));
         $id = Database::insert(
-            "INSERT INTO work_orders
-              (wo_number, property_id, unit_id, tenant_id, created_by, assigned_to,
-               issue_type, description, priority, status, scheduled_date, scheduled_time, source)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            [
-                $number,
-                $d['property_id'] ?? null,
-                $d['unit_id'] ?? null,
-                $d['tenant_id'] ?? null,
-                $userId,
-                $d['assigned_to'] ?? null,
-                $d['issue_type'] ?? 'general',
-                $d['description'] ?? null,
-                $d['priority'] ?? 'medium',
-                $d['status'] ?? 'new',
-                $d['scheduled_date'] ?? null,
-                $d['scheduled_time'] ?? null,
-                $d['source'] ?? 'manual',
-            ]
+            'INSERT INTO work_orders (' . implode(',', $cols) . ") VALUES ({$placeholders})",
+            $vals
         );
-        self::addHistory($id, null, $d['status'] ?? 'new', $userId);
+        self::addHistory($id, null, $status, $userId);
         return $id;
     }
 
     public static function update(int $id, array $d, int $userId): void
     {
         $current = Database::one('SELECT status FROM work_orders WHERE id = ?', [$id]);
-        $fields = [];
+        $set = [];
         $params = [];
-        $allowed = ['property_id', 'unit_id', 'tenant_id', 'assigned_to', 'issue_type',
-            'description', 'priority', 'status', 'scheduled_date', 'scheduled_time'];
-        foreach ($allowed as $f) {
+        foreach (self::WRITABLE as $f) {
             if (array_key_exists($f, $d)) {
-                $fields[] = "$f = ?";
+                $set[] = "$f = ?";
                 $params[] = $d[$f] === '' ? null : $d[$f];
             }
         }
-        if ($fields === []) {
+        if ($set === []) {
             return;
         }
         $params[] = $id;
-        Database::run('UPDATE work_orders SET ' . implode(', ', $fields) . ' WHERE id = ?', $params);
+        Database::run('UPDATE work_orders SET ' . implode(', ', $set) . ' WHERE id = ?', $params);
 
         if (isset($d['status']) && $current && $d['status'] !== $current['status']) {
             self::addHistory($id, $current['status'], $d['status'], $userId);
+            if ($d['status'] === 'completed') {
+                Database::run('UPDATE work_orders SET completed_at = NOW() WHERE id = ? AND completed_at IS NULL', [$id]);
+            }
         }
     }
 
@@ -227,9 +241,10 @@ final class WorkOrder
         ];
     }
 
+    /** Status -> rows map for the Kanban board. */
     public static function board(): array
     {
-        $rows = self::list([]);
+        $rows = self::list(['limit' => 100, 'page' => 1])['data'];
         $board = [];
         foreach (self::STATUSES as $s) {
             $board[$s] = [];

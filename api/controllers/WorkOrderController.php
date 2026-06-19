@@ -20,9 +20,7 @@ final class WorkOrderController
         $filters = [
             'status'         => Request::query('status'),
             'priority'       => Request::query('priority'),
-            'property_id'    => Request::query('property_id'),
-            'unit_id'        => Request::query('unit_id'),
-            'tenant_id'      => Request::query('tenant_id'),
+            'issue_type'     => Request::query('issue_type'),
             'assigned_to'    => Request::query('assigned_to'),
             'scheduled_date' => Request::query('scheduled_date'),
             'created_from'   => Request::query('created_from'),
@@ -31,12 +29,20 @@ final class WorkOrderController
             'completed_to'   => Request::query('completed_to'),
             'search'         => Request::query('search'),
             'include_archived' => Request::query('include_archived'),
+            'page'           => Request::query('page'),
+            'limit'          => Request::query('limit'),
+            'sort'           => Request::query('sort'),
+            'order'          => Request::query('order'),
         ];
         // Technicians only see their own assigned work orders.
         if (Auth::role() === 'technician') {
             $filters['assigned_to'] = Auth::id();
         }
-        Response::ok(['workOrders' => WorkOrder::list($filters)]);
+        $result = WorkOrder::list($filters);
+        Response::ok([
+            'workOrders' => $result['data'],
+            'total'      => $result['total'],
+        ]);
     }
 
     /** GET /work-orders/stats */
@@ -75,10 +81,12 @@ final class WorkOrderController
         $data = Request::json();
 
         $v = new Validator($data);
-        $v->required('description')->string('description', 1, 5000)
+        $v->required('tenant_name')->string('tenant_name', 1, 150)
+          ->required('unit_number')->string('unit_number', 1, 50)
+          ->required('address')->string('address', 1, 255)
+          ->email('tenant_email')
           ->in('priority', WorkOrder::PRIORITIES)
           ->in('status', WorkOrder::STATUSES)
-          ->integer('property_id')->integer('unit_id')->integer('tenant_id')
           ->integer('assigned_to')->date('scheduled_date');
         if ($v->fails()) {
             Response::error('Validation failed', 422, $v->errors());

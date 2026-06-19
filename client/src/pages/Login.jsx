@@ -76,7 +76,7 @@ export default function Login() {
           </form>
 
           <p className="text-slate-500 text-xs text-center mt-4">
-            Default: admin / admin123
+            Sample login: admin / ChangeMe123!
           </p>
         </div>
       </div>

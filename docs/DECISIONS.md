@@ -6,6 +6,38 @@ Newest entries at the top. Each decision notes the context, the choice, and why.
 
 ---
 
+## ADR-0006 — Denormalized convenience columns on work_orders + cookie/CSRF auth on the frontend
+**Date:** 2026-06-18 · **Status:** Accepted
+
+**Context:** The working React UI (`client/`) is built entirely around a *flat*
+work order — it reads and writes `tenant_name`, `tenant_email`, `unit_number`,
+`address`, and `notes` directly on the work-order record, and uses the priority
+value `emergency`. The new normalized schema moved those into separate
+tenants/units/properties tables. Rewriting every form/page to the normalized
+model would violate "preserve the existing frontend" and is risky without a live
+test environment.
+
+**Decision:** Keep both. `work_orders` carries denormalized convenience columns
+(`tenant_name`, `tenant_email`, `unit_number`, `address`, `notes`) that the
+current UI uses, alongside the normalized `tenant_id`/`unit_id`/`property_id`
+FKs that power the new tenants/properties features. The PHP API speaks the flat
+contract the UI expects; `client/src/lib/api.js` adapts response shapes so no
+page code changed. Priority enum extended to include `emergency`. Auth switched
+from a localStorage JWT to a server session cookie (HttpOnly/SameSite) plus a
+CSRF token in the `X-CSRF-Token` header — handled centrally in `api.js` and
+`AuthContext`, so individual pages were untouched.
+
+**Why:** This preserves the working UI and its design exactly while still
+delivering the normalized model and the stronger session/CSRF security the brief
+requires. The denormalized columns are a pragmatic bridge; the FKs keep the door
+open to fully normalized tenant/property workflows later.
+
+**Trade-off:** Convenience columns can drift from the linked records. Acceptable
+for now; a later sync step (or DB triggers) can reconcile them once the
+normalized tenant/property UI lands.
+
+---
+
 ## ADR-0005 — Self-host scheduling instead of Calendly
 **Date:** 2026-06-18 · **Status:** Accepted
 

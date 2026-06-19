@@ -44,12 +44,13 @@ INSERT INTO tenants (unit_id, full_name, phone, email) VALUES
 -- Work orders -----------------------------------------------------------------
 INSERT INTO work_orders
   (wo_number, property_id, unit_id, tenant_id, created_by, assigned_to,
+   tenant_name, tenant_email, unit_number, address,
    issue_type, description, priority, status, scheduled_date, scheduled_time, source) VALUES
-  ('WO-2026-0001', 1, 1, 1, 1, 2, 'plumbing',  'Kitchen sink draining slowly.',        'medium', 'scheduled',  '2026-06-22', '10:00:00', 'manual'),
-  ('WO-2026-0002', 1, 2, 2, 1, 2, 'electrical','Bedroom outlet not working.',          'high',   'in_progress', NULL,        NULL,       'manual'),
-  ('WO-2026-0003', 1, 3, 3, 1, 3, 'hvac',      'AC not cooling.',                      'urgent', 'new',         NULL,        NULL,       'email'),
-  ('WO-2026-0004', 2, 4, 4, 1, NULL,'appliance','Dishwasher leaking under the door.',  'low',    'pending',     NULL,        NULL,       'manual'),
-  ('WO-2026-0005', 1, 1, 1, 1, 2, 'general',   'Replace smoke detector battery.',      'low',    'completed',   '2026-06-15', '09:00:00', 'manual');
+  ('WO-2026-0001', 1, 1, 1, 1, 2,   'Jordan Blake', 'jordan.blake@example.test', '101', '120 Maple St, Springfield, IL', 'plumbing',  'Kitchen sink draining slowly.',       'medium',    'scheduled',  '2026-06-22', '10:00:00', 'manual'),
+  ('WO-2026-0002', 1, 2, 2, 1, 2,   'Casey Morgan', 'casey.morgan@example.test', '102', '120 Maple St, Springfield, IL', 'electrical','Bedroom outlet not working.',         'high',      'in_progress', NULL,        NULL,       'manual'),
+  ('WO-2026-0003', 1, 3, 3, 1, 3,   'Taylor Quinn', 'taylor.quinn@example.test', '203', '120 Maple St, Springfield, IL', 'hvac',      'AC not cooling.',                     'emergency', 'new',         NULL,        NULL,       'email'),
+  ('WO-2026-0004', 2, 4, 4, 1, NULL,'Riley Parker', 'riley.parker@example.test', 'A',   '88 Cedar Ave, Springfield, IL',  'appliances','Dishwasher leaking under the door.',  'low',       'pending',     NULL,        NULL,       'manual'),
+  ('WO-2026-0005', 1, 1, 1, 1, 2,   'Jordan Blake', 'jordan.blake@example.test', '101', '120 Maple St, Springfield, IL', 'general',   'Replace smoke detector battery.',     'low',       'completed',   '2026-06-15', '09:00:00', 'manual');
 
 UPDATE work_orders SET completed_at = '2026-06-15 09:45:00' WHERE wo_number = 'WO-2026-0005';
 

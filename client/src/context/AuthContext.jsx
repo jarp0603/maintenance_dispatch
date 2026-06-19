@@ -7,24 +7,27 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // On load, ask the server who we are using the session cookie.
   useEffect(() => {
-    const token = localStorage.getItem('dispatch_token');
-    if (!token) { setLoading(false); return; }
-    authApi.me()
+    authApi
+      .me()
       .then((res) => setUser(res.data.user))
-      .catch(() => localStorage.removeItem('dispatch_token'))
+      .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 
   async function login(username, password) {
     const res = await authApi.login(username, password);
-    localStorage.setItem('dispatch_token', res.data.token);
     setUser(res.data.user);
     return res.data;
   }
 
-  function logout() {
-    localStorage.removeItem('dispatch_token');
+  async function logout() {
+    try {
+      await authApi.logout();
+    } catch {
+      // ignore network errors on logout
+    }
     setUser(null);
   }
 
