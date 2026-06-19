@@ -1,0 +1,39 @@
+# ===========================================================================
+# Maintenance Dispatch API — Apache config (Bluehost shared hosting)
+# Routes every /api/* request to index.php (front controller).
+# ===========================================================================
+
+RewriteEngine On
+
+# If the deployment places the API at https://domain/api/, set the base here.
+# When api/ sits directly under public_html as /api, this base is correct.
+RewriteBase /api/
+
+# Do not rewrite real files or directories (none should be web-served anyway).
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Everything else -> front controller
+RewriteRule ^ index.php [L]
+
+# --- Security headers --------------------------------------------------------
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-XSS-Protection "0"
+</IfModule>
+
+# --- Deny access to sensitive files -----------------------------------------
+<FilesMatch "\.(env|sql|md|log|ini|sh)$">
+  Require all denied
+</FilesMatch>
+
+# Block direct access to PHP files in subfolders (only index.php is the entry).
+<FilesMatch "^(config|controllers|middleware|models|services|utils|routes)\.php$">
+  Require all denied
+</FilesMatch>
+
+# Disable directory listing
+Options -Indexes

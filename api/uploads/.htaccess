@@ -1,0 +1,12 @@
+# Deny ALL direct web access to uploaded files.
+# Files are served only through the authenticated API endpoint
+# GET /api/attachments/{id} (see controllers/AttachmentController.php).
+Require all denied
+
+# Belt-and-suspenders: never execute anything in this directory.
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phps
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .phps
+Options -Indexes -ExecCGI

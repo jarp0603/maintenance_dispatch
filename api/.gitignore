@@ -1,0 +1,7 @@
+# Never commit real secrets or uploaded files.
+.env
+
+# Uploaded files (keep the directory + its guards, ignore the contents).
+uploads/*
+!uploads/.htaccess
+!uploads/.gitkeep
